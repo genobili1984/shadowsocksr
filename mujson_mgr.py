@@ -10,20 +10,29 @@ import sys
 import json
 import base64
 
+
 class MuJsonLoader(object):
 	def __init__(self):
 		self.json = None
 
 	def load(self, path):
-		with open(path, 'rb+') as f:
-			self.json = json.loads(f.read().decode('utf8'))
+		l = "[]"
+		try:
+			with open(path, 'rb+') as f:
+				l = f.read().decode('utf8')
+		except:
+			pass
+		self.json = json.loads(l)
 
 	def save(self, path):
 		if self.json:
 			output = json.dumps(self.json, sort_keys=True, indent=4, separators=(',', ': '))
-			with open(path, 'r+') as f:
-				f.write(output)
+			with open(path, 'a'):
+				pass
+			with open(path, 'rb+') as f:
+				f.write(output.encode('utf8'))
 				f.truncate()
+
 
 class MuMgr(object):
 	def __init__(self):
@@ -37,10 +46,9 @@ class MuMgr(object):
 		if self.server_addr == '127.0.0.1':
 			self.server_addr = self.getipaddr()
 
-	def getipaddr(self, ifname = 'eth0'):
+	def getipaddr(self, ifname='eth0'):
 		import socket
 		import struct
-		import fcntl
 		ret = '127.0.0.1'
 		try:
 			ret = socket.gethostbyname(socket.getfqdn(socket.gethostname()))
@@ -48,6 +56,7 @@ class MuMgr(object):
 			pass
 		if ret == '127.0.0.1':
 			try:
+				import fcntl
 				s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 				ret = socket.inet_ntoa(fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', ifname[:15]))[20:24])
 			except:
@@ -60,7 +69,7 @@ class MuMgr(object):
 		protocol = protocol.replace("_compatible", "")
 		obfs = obfs.replace("_compatible", "")
 		link = "%s:%s:%s:%s:%s:%s" % (self.server_addr, user['port'], protocol, user['method'], obfs, common.to_str(base64.urlsafe_b64encode(common.to_bytes(user['passwd']))).replace("=", ""))
-		return "ssr://" + ( encode and common.to_str(base64.urlsafe_b64encode(common.to_bytes(link))).replace("=", "") or link)
+		return "ssr://" + (encode and common.to_str(base64.urlsafe_b64encode(common.to_bytes(link))).replace("=", "") or link)
 
 	def userinfo(self, user):
 		ret = ""
@@ -68,18 +77,18 @@ class MuMgr(object):
 			if key in ['enable']:
 				continue
 			ret += '\n'
-			if key in ['transfer_enable', 'u', 'd'] :
+			if key in ['transfer_enable', 'u', 'd']:
 				val = user[key]
 				if val / 1024 < 4:
 					ret += "    %s : %s" % (key, val)
-				elif val / 1024**2 < 4:
+				elif val / 1024 ** 2 < 4:
 					val /= float(1024)
 					ret += "    %s : %s  K Bytes" % (key, val)
-				elif val / 1024**3 < 4:
-					val /= float(1024**2)
+				elif val / 1024 ** 3 < 4:
+					val /= float(1024 ** 2)
 					ret += "    %s : %s  M Bytes" % (key, val)
 				else:
-					val /= float(1024**3)
+					val /= float(1024 ** 3)
 					ret += "    %s : %s  G Bytes" % (key, val)
 			else:
 				ret += "    %s : %s" % (key, user[key])
@@ -172,8 +181,9 @@ class MuMgr(object):
 			if match:
 				print("### user [%s] info %s" % (row['user'], self.userinfo(row)))
 
+
 def print_server_help():
-    print('''usage: python mujson_manage.py -a|-d|-e|-c|-l [OPTION]...
+	print('''usage: python mujson_manage.py -a|-d|-e|-c|-l [OPTION]...
 
 Actions:
   -a ADD                 add/edit a user
@@ -197,6 +207,7 @@ Options:
 General options:
   -h, --help             show this help message and exit
 ''')
+
 
 def main():
 	shortopts = 'adeclu:p:k:O:o:G:g:m:t:f:h'
@@ -313,4 +324,3 @@ def main():
 
 if __name__ == '__main__':
 	main()
-
