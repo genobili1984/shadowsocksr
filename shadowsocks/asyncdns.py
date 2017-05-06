@@ -331,6 +331,8 @@ class DNSResolver(object):
             with open(etc_path, 'rb') as f:
                 for line in f.readlines():
                     line = line.strip()
+                    if b"#" in line:
+                        line = line[:line.find(b'#')]
                     parts = line.split()
                     if len(parts) >= 2:
                         ip = parts[0]
