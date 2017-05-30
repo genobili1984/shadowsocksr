@@ -347,15 +347,11 @@ class TCPRelayHandler(object):
                 #logging.info('UDP over TCP sendto %d %s' % (len(data), binascii.hexlify(data)))
                 while len(self._udp_data_send_buffer) > 6:
                     length = struct.unpack('>H', self._udp_data_send_buffer[:2])[0]
-                    if length >= 0xff00:
-                        length = struct.unpack('>H', self._udp_data_send_buffer[1:3])[0] + 0xff00
 
                     if length > len(self._udp_data_send_buffer):
                         break
 
                     data = self._udp_data_send_buffer[:length]
-                    if length >= 0xff00:
-                        data = data[1:]
                     self._udp_data_send_buffer = self._udp_data_send_buffer[length:]
 
                     frag = common.ord(data[2])
@@ -832,15 +828,15 @@ class TCPRelayHandler(object):
         buffer_size = len(sock.recv(recv_buffer_size, socket.MSG_PEEK))
         if up:
             buffer_size = min(buffer_size, self._recv_u_max_size)
-            self._recv_u_max_size = min(self._recv_u_max_size + TCP_MSS, BUF_SIZE)
+            self._recv_u_max_size = min(self._recv_u_max_size + self._tcp_mss - self._overhead, BUF_SIZE)
         else:
             buffer_size = min(buffer_size, self._recv_d_max_size)
-            self._recv_d_max_size = min(self._recv_d_max_size + TCP_MSS, BUF_SIZE)
+            self._recv_d_max_size = min(self._recv_d_max_size + self._tcp_mss - self._overhead, BUF_SIZE)
         if buffer_size == recv_buffer_size:
             return buffer_size
-        s = buffer_size % self._tcp_mss + self._overhead
-        if s > self._tcp_mss:
-            return buffer_size - (s - self._tcp_mss)
+        frame_size = self._tcp_mss - self._overhead
+        if buffer_size > frame_size:
+            buffer_size = int(buffer_size / frame_size) * frame_size
         return buffer_size
 
     def _on_local_read(self):
@@ -953,10 +949,7 @@ class TCPRelayHandler(object):
                     ip = socket.inet_pton(socket.AF_INET6, addr[0])
                     data = b'\x00\x04' + ip + port + data
                 size = len(data) + 2
-                if size >= 0xff00:
-                    data = common.chr(0xff) + struct.pack('>H', size - 0xff00 + 1) + data
-                else:
-                    data = struct.pack('>H', size) + data
+                data = struct.pack('>H', size) + data
                 #logging.info('UDP over TCP recvfrom %s:%d %d bytes to %s:%d' % (addr[0], addr[1], len(data), self._client_address[0], self._client_address[1]))
             else:
                 if self._is_local:
@@ -1074,7 +1067,7 @@ class TCPRelayHandler(object):
                     handle = True
                     self._on_remote_read(sock == self._remote_sock)
                 else:
-                    self._recv_d_max_size = TCP_MSS
+                    self._recv_d_max_size = self._tcp_mss - self._overhead
             elif event & eventloop.POLL_OUT:
                 handle = True
                 self._on_remote_write()
@@ -1087,7 +1080,7 @@ class TCPRelayHandler(object):
                     handle = True
                     self._on_local_read()
                 else:
-                    self._recv_u_max_size = TCP_MSS
+                    self._recv_u_max_size = self._tcp_mss - self._overhead
             elif event & eventloop.POLL_OUT:
                 handle = True
                 self._on_local_write()
